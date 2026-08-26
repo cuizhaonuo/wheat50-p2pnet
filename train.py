@@ -188,10 +188,14 @@ def main(args):
         if writer is not None:
             with open(run_log_name, "a") as log_file:
                 log_file.write("loss/loss@{}: {}".format(epoch, stat['loss']))
-                log_file.write("loss/loss_ce@{}: {}".format(epoch, stat['loss_ce']))
+                log_file.write("loss/loss_ce@{}: {}".format(
+                    epoch, stat['loss_ce']))
+                log_file.write("loss/loss_point@{}: {}".format(
+                    epoch, stat['loss_point']))
                 
             writer.add_scalar('loss/loss', stat['loss'], epoch)
             writer.add_scalar('loss/loss_ce', stat['loss_ce'], epoch)
+            writer.add_scalar('loss/loss_point', stat['loss_point'], epoch)
 
         t2 = time.time()
         print('[ep %d][lr %.7f][%.2fs]' % \
@@ -204,6 +208,9 @@ def main(args):
         checkpoint_latest_path = os.path.join(args.checkpoints_dir, 'latest.pth')
         torch.save({
             'model': model_without_ddp.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'lr_scheduler': lr_scheduler.state_dict(),
+            'epoch': epoch,
         }, checkpoint_latest_path)
         # run evaluation
         if epoch % args.eval_freq == 0 and epoch != 0:

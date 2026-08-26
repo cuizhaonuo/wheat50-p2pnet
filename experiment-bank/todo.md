@@ -7,3 +7,4 @@ Use only these status values:
 
 | Task | Status | Idea | Result |
 | --- | --- | --- | --- |
+| Train the wheat50 P2PNet baseline with batch size 16 | pending | [Idea](ideas/wheat50-p2pnet-baseline-bs16.md) | [Result](experiments/wheat50-p2pnet-baseline-bs16.md) |
