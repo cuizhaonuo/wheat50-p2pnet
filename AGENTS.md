@@ -37,7 +37,7 @@ No automated framework or coverage threshold is configured. Run the compile chec
 
 ## Experiment Bank Workflow
 
-Use `experiment-bank/` as the experiment ledger. `task.md` lists work using only `pending` and `compeleted`; add new tasks as `pending` and mark them `compeleted` only after the run ends. Store each experiment's rationale in `ideas/` and its configuration, metrics, observations, and outcome in `experiments/`. Use matching descriptive filenames, such as `ideas/multistep-lr.md` and `experiments/multistep-lr.md`. After every experiment, update all applicable records, including failed or inconclusive runs.
+Use `experiment-bank/` as the experiment ledger. `todo.md` lists work using only `pending` and `compeleted`; add new tasks as `pending` and mark them `compeleted` only after the run ends. Store each experiment's rationale in `ideas/` and its configuration, metrics, observations, and outcome in `experiments/`. Use matching descriptive filenames, such as `ideas/multistep-lr.md` and `experiments/multistep-lr.md`. After every experiment, update all applicable records, including failed or inconclusive runs.
 
 ## Commit & Pull Request Guidelines
 
