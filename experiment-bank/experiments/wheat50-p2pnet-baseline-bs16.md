@@ -24,12 +24,15 @@ See [the experiment idea](../ideas/wheat50-p2pnet-baseline-bs16.md).
 - Epoch 5 validation MSE: 54.2623
 - Epoch 8 training loss: 0.0099
 - Epoch 8 unscaled point loss: 2.8284
+- Epoch 15 validation MAE: 25.8395
+- Epoch 15 validation MSE: 32.8312
 
 ## Observations
 
 - The first nine epochs completed without out-of-memory or non-finite loss.
 - `loss_point` is present in the averaged training statistics and decreases
-  during the initial epochs.
+  during the initial epochs, but increased again by epoch 15; localization
+  quality needs continued monitoring.
 - The latest checkpoint contains the model, optimizer, learning-rate
   scheduler, and epoch state for exact training continuation.
 - There is no comparable pre-fix validation baseline because the regression
