@@ -22,7 +22,8 @@ def get_args_parser():
     parser.add_argument('--batch_size', default=8, type=int)
     parser.add_argument('--weight_decay', default=1e-4, type=float)
     parser.add_argument('--epochs', default=3500, type=int)
-    parser.add_argument('--lr_drop', default=3500, type=int)
+    parser.add_argument('--lr_drop', default=[3500], type=int, nargs='+',
+                        help='epoch(s) at which to drop LR by 0.1. Pass multiple values for multi-step.')
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
 
@@ -114,7 +115,7 @@ def main(args):
     ]
     # Adam is used by default
     optimizer = torch.optim.Adam(param_dicts, lr=args.lr)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
+    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_drop, gamma=0.1)
     # create the dataset
     loading_data = build_dataset(args=args)
     # create the training and valiation set

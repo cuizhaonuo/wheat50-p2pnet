@@ -84,7 +84,11 @@ class SHHA(Dataset):
         target = [{} for i in range(len(point))]
         for i, _ in enumerate(point):
             target[i]['point'] = torch.Tensor(point[i])
-            image_id = int(img_path.split('/')[-1].split('.')[0].split('_')[-1])
+            stem = img_path.split('/')[-1].split('.')[0]
+            try:
+                image_id = int(stem.split('_')[-1])
+            except ValueError:
+                image_id = index
             image_id = torch.Tensor([image_id]).long()
             target[i]['image_id'] = image_id
             target[i]['labels'] = torch.ones([point[i].shape[0]]).long()
@@ -105,7 +109,7 @@ def load_data(img_gt_path, train):
             y = float(line.strip().split(' ')[1])
             points.append([x, y])
 
-    return img, np.array(points)
+    return img, np.array(points, dtype=np.float32).reshape(-1, 2)
 
 # random crop augumentation
 def random_crop(img, den, num_patch=4):
