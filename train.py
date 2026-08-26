@@ -11,9 +11,8 @@ from crowd_datasets import build_dataset
 from engine import *
 from models import build_model
 import os
-from tensorboardX import SummaryWriter
 import warnings
-warnings.filterwarnings('ignore')
+warnings.filterwarnings('ignore', category=FutureWarning)
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set parameters for training P2PNet', add_help=False)
@@ -53,9 +52,22 @@ def get_args_parser():
                         help="line number of anchor points")
 
     # dataset parameters
-    parser.add_argument('--dataset_file', default='SHHA')
+    parser.add_argument('--dataset_file', default='SHHA',
+                        help='dataset adapter: SHHA or COCO')
     parser.add_argument('--data_root', default='./new_public_density_data',
                         help='path where the dataset is')
+    parser.add_argument('--coco_train_annotations',
+                        default='annotations/instances_train2017.json')
+    parser.add_argument('--coco_val_annotations',
+                        default='annotations/instances_val2017.json')
+    parser.add_argument('--coco_train_images', default='train2017')
+    parser.add_argument('--coco_val_images', default='val2017')
+    parser.add_argument('--coco_category_name', default='wheat_2')
+    parser.add_argument('--coco_crop_size', default=512, type=int)
+    parser.add_argument('--coco_crops_per_image', default=1, type=int)
+    parser.add_argument('--coco_scale_min', default=0.7, type=float)
+    parser.add_argument('--coco_scale_max', default=1.3, type=float)
+    parser.add_argument('--coco_hflip_probability', default=0.5, type=float)
     
     parser.add_argument('--output_dir', default='./log',
                         help='path where to save, empty for no saving')
@@ -78,6 +90,13 @@ def get_args_parser():
 
 def main(args):
     os.environ["CUDA_VISIBLE_DEVICES"] = '{}'.format(args.gpu_id)
+    for directory in (
+        args.output_dir,
+        args.checkpoints_dir,
+        args.tensorboard_dir,
+    ):
+        if directory:
+            os.makedirs(directory, exist_ok=True)
     # create the logging file
     run_log_name = os.path.join(args.output_dir, 'run_log.txt')
     with open(run_log_name, "w") as log_file:
@@ -117,9 +136,7 @@ def main(args):
     optimizer = torch.optim.Adam(param_dicts, lr=args.lr)
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_drop, gamma=0.1)
     # create the dataset
-    loading_data = build_dataset(args=args)
-    # create the training and valiation set
-    train_set, val_set = loading_data(args.data_root)
+    train_set, val_set = build_dataset(args=args)
     # create the sampler used during training
     sampler_train = torch.utils.data.RandomSampler(train_set)
     sampler_val = torch.utils.data.SequentialSampler(val_set)
@@ -151,6 +168,12 @@ def main(args):
     mae = []
     mse = []
     # the logger writer
+    try:
+        from tensorboardX import SummaryWriter
+    except ImportError as error:
+        raise ImportError(
+            'tensorboardX is required for training; install requirements.txt'
+        ) from error
     writer = SummaryWriter(args.tensorboard_dir)
     
     step = 0

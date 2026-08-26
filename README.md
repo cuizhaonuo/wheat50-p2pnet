@@ -132,6 +132,43 @@ CUDA_VISIBLE_DEVICES=0 python train.py --data_root $DATA_ROOT \
 ```
 By default, a periodic evaluation will be conducted on the validation set.
 
+### Training on COCO wheat spikelet points
+
+The `COCO` dataset adapter reads the custom `points` field from every
+`wheat_2` annotation and flattens the nested arrays into P2PNet's single-class
+point target. The COCO files remain the source of truth; no SHHA text export is
+required. Images without points are retained as negative samples.
+
+The default layout is:
+
+```
+DATA_ROOT/
+        |->annotations/instances_train2017.json
+        |->annotations/instances_val2017.json
+        |->train2017/*.jpg
+        |->val2017/*.jpg
+```
+
+Run training with:
+
+```
+CUDA_VISIBLE_DEVICES=0 python train.py \
+    --dataset_file COCO \
+    --data_root /path/to/coco_2cat_with_points \
+    --coco_category_name wheat_2 \
+    --coco_crop_size 512 \
+    --batch_size 2 \
+    --output_dir ./logs \
+    --checkpoints_dir ./weights \
+    --tensorboard_dir ./logs \
+    --gpu_id 0
+```
+
+Training uses random scale, crop, and horizontal flip augmentation. Validation
+uses each complete image. The annotation/image paths and augmentation settings
+can be overridden with the `--coco_*` command-line options shown by
+`python train.py --help`.
+
 ## Testing
 
 A trained model (with an MAE of **51.96**) on SHTechPartA is available at "./weights", run the following commands to launch a visualization demo:
