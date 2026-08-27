@@ -2,9 +2,7 @@
 
 ## Status
 
-Running since 2026-08-27 17:14 CST in tmux session
-`wheat50_copypaste_bs16_e250` (PID 3934685), from branch commit
-`de3c438`.
+Completed automatically on 2026-08-27 19:06 CST from code commit `de3c438`.
 
 ## Configuration
 
@@ -12,15 +10,26 @@ See [the experiment idea](../ideas/wheat50-foreground-copypaste-bs16-e250.md).
 
 ## Metrics
 
-- Epoch 0 training loss: 0.3456
-- Epoch 0 unscaled point loss: 3.7804
+- Best validation MAE: 3.8889 at epoch 240
+- MSE at best-MAE epoch: 5.1771
+- Best validation MSE: 5.1771 at epoch 240
+- MAE at best-MSE epoch: 3.8889
+- Final epoch: 249
+- Final training loss: 0.0133
+- Final classification loss: 0.0049
+- Final weighted point loss: 0.0084
+- Final unscaled point loss: 41.9789
+- Minimum unscaled point loss: 3.7611 at epoch 1
+- Maximum unscaled point loss: 50.7497 at epoch 24
+- Training time: 1:52:04
 
 ## Observations
 
-- Real batch-16 forward/backward preflight used 14.511 GiB peak allocated
-  and 21.543 GiB peak reserved GPU memory.
-- Training started successfully and wrote a resumable latest checkpoint.
+- Automated finalization confirmed that all configured epochs ended and validation ran successfully.
+- Best MAE occurred at epoch 240; best MSE occurred at epoch 240.
+- Unscaled point loss ranged from 3.7611 to 50.7497.
 
 ## Outcome
 
-Pending.
+The experiment improved best MAE by 1.9136 and changed best MSE by -2.8552 relative to the foreground-only baseline (5.8025/8.0323). The unscaled point loss finished at 41.9789 after a minimum of 3.7611.
+

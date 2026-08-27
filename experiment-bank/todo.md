@@ -9,4 +9,4 @@ Use only these status values:
 | --- | --- | --- | --- |
 | Train the wheat50 P2PNet baseline with batch size 16 | compeleted | [Idea](ideas/wheat50-p2pnet-baseline-bs16.md) | [Result](experiments/wheat50-p2pnet-baseline-bs16.md) |
 | Train P2PNet on wheat50 foreground images for 250 epochs | compeleted | [Idea](ideas/wheat50-foreground-p2pnet-bs16-e250.md) | [Result](experiments/wheat50-foreground-p2pnet-bs16-e250.md) |
-| Evaluate non-overlapping Copy-Paste on wheat50 foreground images | pending | [Idea](ideas/wheat50-foreground-copypaste-bs16-e250.md) | [Result](experiments/wheat50-foreground-copypaste-bs16-e250.md) |
+| Evaluate non-overlapping Copy-Paste on wheat50 foreground images | compeleted | [Idea](ideas/wheat50-foreground-copypaste-bs16-e250.md) | [Result](experiments/wheat50-foreground-copypaste-bs16-e250.md) |
