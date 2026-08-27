@@ -68,6 +68,15 @@ def get_args_parser():
     parser.add_argument('--coco_scale_min', default=0.7, type=float)
     parser.add_argument('--coco_scale_max', default=1.3, type=float)
     parser.add_argument('--coco_hflip_probability', default=0.5, type=float)
+    parser.add_argument(
+        '--coco_copy_paste_probability', default=0.0, type=float,
+        help='probability of applying instance Copy-Paste to a training crop')
+    parser.add_argument(
+        '--coco_copy_paste_max_instances', default=3, type=int,
+        help='maximum number of instances pasted into each selected crop')
+    parser.add_argument(
+        '--coco_copy_paste_placement_attempts', default=20, type=int,
+        help='maximum zero-overlap placement attempts per pasted instance')
     
     parser.add_argument('--output_dir', default='./log',
                         help='path where to save, empty for no saving')

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from PIL import Image
+from PIL import Image, ImageDraw
 from torch.utils.data import Dataset
 from torchvision.transforms import InterpolationMode
 from torchvision.transforms import functional as functional
@@ -38,6 +38,9 @@ class CocoWheatPoints(Dataset):
         crops_per_image=1,
         scale_range=(0.7, 1.3),
         horizontal_flip_probability=0.5,
+        copy_paste_probability=0.0,
+        copy_paste_max_instances=3,
+        copy_paste_placement_attempts=20,
     ):
         self.data_root = Path(data_root).expanduser()
         annotation_file = Path(annotation_file)
@@ -56,9 +59,20 @@ class CocoWheatPoints(Dataset):
         self.crops_per_image = int(crops_per_image)
         self.scale_range = tuple(float(value) for value in scale_range)
         self.horizontal_flip_probability = float(horizontal_flip_probability)
+        self.copy_paste_probability = float(copy_paste_probability)
+        self.copy_paste_max_instances = int(copy_paste_max_instances)
+        self.copy_paste_placement_attempts = int(
+            copy_paste_placement_attempts
+        )
 
         self._validate_options()
         self.records = self._load_records()
+        self.copy_paste_instances = [
+            (record, instance)
+            for record in self.records
+            for instance in record["instances"]
+            if len(instance["points"]) > 0
+        ]
         self.num_points = sum(len(record["points"]) for record in self.records)
         self.num_empty_images = sum(
             len(record["points"]) == 0 for record in self.records
@@ -85,6 +99,18 @@ class CocoWheatPoints(Dataset):
             raise ValueError(
                 "horizontal_flip_probability must be between zero and one"
             )
+        if not 0 <= self.copy_paste_probability <= 1:
+            raise ValueError(
+                "copy_paste_probability must be between zero and one"
+            )
+        if self.copy_paste_max_instances <= 0:
+            raise ValueError(
+                "copy_paste_max_instances must be greater than zero"
+            )
+        if self.copy_paste_placement_attempts <= 0:
+            raise ValueError(
+                "copy_paste_placement_attempts must be greater than zero"
+            )
 
     def _load_records(self):
         with self.annotation_path.open(encoding="utf-8") as handle:
@@ -108,6 +134,7 @@ class CocoWheatPoints(Dataset):
             raise ValueError("COCO image ids must be unique")
 
         points_by_image = defaultdict(list)
+        instances_by_image = defaultdict(list)
         empty_annotation_ids = []
         for annotation in coco.get("annotations", []):
             if annotation.get("category_id") != self.category_id:
@@ -122,18 +149,29 @@ class CocoWheatPoints(Dataset):
             annotation_points = annotation.get("points") or []
             if not annotation_points:
                 empty_annotation_ids.append(annotation.get("id"))
-                continue
-            point_array = np.asarray(annotation_points, dtype=np.float32)
-            if (
-                point_array.ndim != 2
-                or point_array.shape[1] != 2
-                or not np.isfinite(point_array).all()
-            ):
-                raise ValueError(
-                    f"Annotation {annotation.get('id')} has invalid points; "
-                    "expected a finite N x 2 array"
+                point_array = np.empty((0, 2), dtype=np.float32)
+            else:
+                point_array = np.asarray(annotation_points, dtype=np.float32)
+                if (
+                    point_array.ndim != 2
+                    or point_array.shape[1] != 2
+                    or not np.isfinite(point_array).all()
+                ):
+                    raise ValueError(
+                        f"Annotation {annotation.get('id')} has invalid points; "
+                        "expected a finite N x 2 array"
+                    )
+                points_by_image[image_id].append(point_array)
+
+            polygons = self._parse_polygons(annotation.get("segmentation"))
+            if polygons:
+                instances_by_image[image_id].append(
+                    {
+                        "annotation_id": annotation.get("id"),
+                        "polygons": polygons,
+                        "points": point_array,
+                    }
                 )
-            points_by_image[image_id].append(point_array)
 
         if empty_annotation_ids:
             preview = ", ".join(str(value) for value in empty_annotation_ids[:8])
@@ -167,9 +205,27 @@ class CocoWheatPoints(Dataset):
                     "width": image.get("width"),
                     "height": image.get("height"),
                     "points": points,
+                    "instances": instances_by_image.get(image["id"], []),
                 }
             )
         return records
+
+    @staticmethod
+    def _parse_polygons(segmentation):
+        if not isinstance(segmentation, list):
+            return []
+        polygons = []
+        for polygon in segmentation:
+            coordinates = np.asarray(polygon, dtype=np.float32)
+            if (
+                coordinates.ndim != 1
+                or len(coordinates) < 6
+                or len(coordinates) % 2
+                or not np.isfinite(coordinates).all()
+            ):
+                continue
+            polygons.append(coordinates.reshape(-1, 2))
+        return polygons
 
     def __len__(self):
         return len(self.records)
@@ -192,29 +248,42 @@ class CocoWheatPoints(Dataset):
             target = self._make_target(points, record["image_id"])
             return tensor, [target]
 
-        image, points = self._random_scale(image, points)
-        image, points = self._pad_to_crop_size(image, points)
+        occupancy = self._rasterize_instances(record, image.size)
+        image, points, occupancy = self._random_scale(image, points, occupancy)
+        image, points, occupancy = self._pad_to_crop_size(
+            image, points, occupancy
+        )
         crop_tensors = []
         crop_targets = []
         for _ in range(self.crops_per_image):
-            crop, crop_points = self._random_crop(image, points)
+            crop, crop_points, crop_occupancy = self._random_crop(
+                image, points, occupancy
+            )
             if random.random() < self.horizontal_flip_probability:
                 crop = functional.hflip(crop)
+                crop_occupancy = functional.hflip(crop_occupancy)
                 crop_points = crop_points.copy()
                 crop_points[:, 0] = self.crop_size - crop_points[:, 0]
+            if (
+                self.copy_paste_probability > 0
+                and random.random() < self.copy_paste_probability
+            ):
+                crop, crop_points, crop_occupancy = self._copy_paste(
+                    crop, crop_points, crop_occupancy
+                )
             crop_tensors.append(self._to_normalized_tensor(crop))
             crop_targets.append(
                 self._make_target(crop_points, record["image_id"])
             )
         return torch.stack(crop_tensors), crop_targets
 
-    def _random_scale(self, image, points):
+    def _random_scale(self, image, points, occupancy):
         scale = random.uniform(*self.scale_range)
         width, height = image.size
         resized_width = max(1, int(round(width * scale)))
         resized_height = max(1, int(round(height * scale)))
         if (resized_width, resized_height) == image.size:
-            return image, points
+            return image, points, occupancy
 
         image = functional.resize(
             image,
@@ -222,12 +291,17 @@ class CocoWheatPoints(Dataset):
             interpolation=InterpolationMode.BILINEAR,
             antialias=True,
         )
+        occupancy = functional.resize(
+            occupancy,
+            [resized_height, resized_width],
+            interpolation=InterpolationMode.NEAREST,
+        )
         points = points.copy()
         points[:, 0] *= resized_width / width
         points[:, 1] *= resized_height / height
-        return image, points
+        return image, points, occupancy
 
-    def _pad_to_crop_size(self, image, points):
+    def _pad_to_crop_size(self, image, points, occupancy):
         width, height = image.size
         padding_right = max(0, self.crop_size - width)
         padding_bottom = max(0, self.crop_size - height)
@@ -237,14 +311,26 @@ class CocoWheatPoints(Dataset):
                 [0, 0, padding_right, padding_bottom],
                 fill=0,
             )
-        return image, points
+            occupancy = functional.pad(
+                occupancy,
+                [0, 0, padding_right, padding_bottom],
+                fill=0,
+            )
+        return image, points, occupancy
 
-    def _random_crop(self, image, points):
+    def _random_crop(self, image, points, occupancy):
         width, height = image.size
         top = random.randint(0, height - self.crop_size)
         left = random.randint(0, width - self.crop_size)
         crop = functional.crop(
             image,
+            top,
+            left,
+            self.crop_size,
+            self.crop_size,
+        )
+        crop_occupancy = functional.crop(
+            occupancy,
             top,
             left,
             self.crop_size,
@@ -260,7 +346,90 @@ class CocoWheatPoints(Dataset):
         crop_points = points[inside].copy()
         crop_points[:, 0] -= left
         crop_points[:, 1] -= top
-        return crop, crop_points
+        return crop, crop_points, crop_occupancy
+
+    @staticmethod
+    def _rasterize_instances(record, image_size):
+        mask = Image.new("L", image_size, 0)
+        draw = ImageDraw.Draw(mask)
+        for instance in record["instances"]:
+            for polygon in instance["polygons"]:
+                draw.polygon([tuple(point) for point in polygon], fill=255)
+        return mask
+
+    def _load_copy_paste_patch(self, record, instance):
+        mask = Image.new("L", (record["width"], record["height"]), 0)
+        draw = ImageDraw.Draw(mask)
+        for polygon in instance["polygons"]:
+            draw.polygon([tuple(point) for point in polygon], fill=255)
+        bounding_box = mask.getbbox()
+        if bounding_box is None:
+            return None
+
+        with Image.open(record["path"]) as donor_image:
+            donor_image = donor_image.convert("RGB")
+            patch = donor_image.crop(bounding_box)
+        patch_mask = mask.crop(bounding_box)
+        points = instance["points"].copy()
+        points[:, 0] -= bounding_box[0]
+        points[:, 1] -= bounding_box[1]
+        return patch, patch_mask, points
+
+    def _copy_paste(self, image, points, occupancy):
+        """Paste complete non-overlapping polygon instances into one crop."""
+        if not self.copy_paste_instances:
+            return image, points, occupancy
+
+        image = image.copy()
+        occupancy = occupancy.copy()
+        pasted_points = []
+        for _ in range(self.copy_paste_max_instances):
+            record, instance = random.choice(self.copy_paste_instances)
+            loaded = self._load_copy_paste_patch(record, instance)
+            if loaded is None:
+                continue
+            patch, patch_mask, instance_points = loaded
+            patch_width, patch_height = patch.size
+            if patch_width > self.crop_size or patch_height > self.crop_size:
+                continue
+
+            placed = False
+            for _ in range(self.copy_paste_placement_attempts):
+                top = random.randint(0, self.crop_size - patch_height)
+                left = random.randint(0, self.crop_size - patch_width)
+                translated_points = instance_points + np.asarray(
+                    [left, top], dtype=np.float32
+                )
+                points_inside = (
+                    (translated_points[:, 0] >= 0)
+                    & (translated_points[:, 0] < self.crop_size)
+                    & (translated_points[:, 1] >= 0)
+                    & (translated_points[:, 1] < self.crop_size)
+                ).all()
+                if not points_inside:
+                    continue
+
+                occupied_region = occupancy.crop(
+                    (left, top, left + patch_width, top + patch_height)
+                )
+                overlap = np.logical_and(
+                    np.asarray(occupied_region) > 0,
+                    np.asarray(patch_mask) > 0,
+                ).any()
+                if overlap:
+                    continue
+
+                image.paste(patch, (left, top), patch_mask)
+                occupancy.paste(255, (left, top), patch_mask)
+                pasted_points.append(translated_points)
+                placed = True
+                break
+            if not placed:
+                continue
+
+        if pasted_points:
+            points = np.concatenate([points, *pasted_points], axis=0)
+        return image, points, occupancy
 
     @staticmethod
     def _make_target(points, image_id):

@@ -14,6 +14,11 @@ def loading_data(data_root, args):
         crops_per_image=args.coco_crops_per_image,
         scale_range=(args.coco_scale_min, args.coco_scale_max),
         horizontal_flip_probability=args.coco_hflip_probability,
+        copy_paste_probability=args.coco_copy_paste_probability,
+        copy_paste_max_instances=args.coco_copy_paste_max_instances,
+        copy_paste_placement_attempts=(
+            args.coco_copy_paste_placement_attempts
+        ),
     )
     val_set = CocoWheatPoints(
         data_root=data_root,
