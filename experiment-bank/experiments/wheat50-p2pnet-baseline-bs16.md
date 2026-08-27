@@ -2,8 +2,7 @@
 
 ## Status
 
-Running since 2026-08-26 14:42 CST in tmux session
-`wheat50_p2pnet_bs16` (PID 2487919), from code commit `796c879`.
+Completed on 2026-08-26 from code commit `796c879`.
 
 ## Configuration
 
@@ -26,6 +25,12 @@ See [the experiment idea](../ideas/wheat50-p2pnet-baseline-bs16.md).
 - Epoch 8 unscaled point loss: 2.8284
 - Epoch 15 validation MAE: 25.8395
 - Epoch 15 validation MSE: 32.8312
+- Best validation MAE: 16.8025 at epoch 225
+- MSE at best-MAE epoch: 22.4458
+- Best validation MSE: 21.8909 at epoch 230
+- Final checkpoint validation MAE: 20.5926
+- Final checkpoint validation MSE: 27.3726
+- Training time: 1:58:05
 
 ## Observations
 
@@ -37,7 +42,14 @@ See [the experiment idea](../ideas/wheat50-p2pnet-baseline-bs16.md).
   scheduler, and epoch state for exact training continuation.
 - There is no comparable pre-fix validation baseline because the regression
   loss was previously disconnected from the optimized loss.
+- The unscaled point loss reached 2.8284 at epoch 8, then increased to
+  30.4871 at epoch 399 while the classification loss continued decreasing.
+- The best-MAE checkpoint is preferable to the final checkpoint for balanced
+  counting; the final checkpoint systematically over-counts.
 
 ## Outcome
 
-Pending.
+The corrected baseline learned useful counting behavior, but the point-loss
+trajectory and localization diagnostics show competition between the
+classification and coordinate objectives. The run establishes the comparison
+baseline for foreground-only images.
