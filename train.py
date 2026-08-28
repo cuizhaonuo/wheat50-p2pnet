@@ -1,7 +1,9 @@
 import argparse
 import datetime
+import os
 import random
 import time
+import warnings
 from pathlib import Path
 
 import torch
@@ -10,8 +12,8 @@ from torch.utils.data import DataLoader, DistributedSampler
 from crowd_datasets import build_dataset
 from engine import *
 from models import build_model
-import os
-import warnings
+from util.repository import get_shared_repository_root, resolve_shared_path
+
 warnings.filterwarnings('ignore', category=FutureWarning)
 
 def get_args_parser():
@@ -69,12 +71,14 @@ def get_args_parser():
     parser.add_argument('--coco_scale_max', default=1.3, type=float)
     parser.add_argument('--coco_hflip_probability', default=0.5, type=float)
     
-    parser.add_argument('--output_dir', default='./log',
-                        help='path where to save, empty for no saving')
-    parser.add_argument('--checkpoints_dir', default='./ckpt',
-                        help='path where to save checkpoints, empty for no saving')
-    parser.add_argument('--tensorboard_dir', default='./runs',
-                        help='path where to save, empty for no saving')
+    parser.add_argument('--experiment_name', default='',
+                        help='optional subdirectory name shared by all artifact paths')
+    parser.add_argument('--output_dir', default='logs',
+                        help='log directory relative to the main worktree')
+    parser.add_argument('--checkpoints_dir', default='checkpoints',
+                        help='checkpoint directory relative to the main worktree')
+    parser.add_argument('--tensorboard_dir', default='runs',
+                        help='TensorBoard directory relative to the main worktree')
 
     parser.add_argument('--seed', default=42, type=int)
     parser.add_argument('--resume', default='', help='resume from checkpoint')
@@ -90,6 +94,19 @@ def get_args_parser():
 
 def main(args):
     os.environ["CUDA_VISIBLE_DEVICES"] = '{}'.format(args.gpu_id)
+    shared_root = get_shared_repository_root(__file__)
+    for attribute in (
+        'output_dir',
+        'checkpoints_dir',
+        'tensorboard_dir',
+    ):
+        setattr(
+            args,
+            attribute,
+            resolve_shared_path(
+                getattr(args, attribute), shared_root, args.experiment_name
+            ),
+        )
     for directory in (
         args.output_dir,
         args.checkpoints_dir,

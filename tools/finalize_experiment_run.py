@@ -1,12 +1,22 @@
-"""Watch a training process and commit its final experiment-bank result."""
+"""Watch training and commit its result to the main worktree experiment bank."""
 
 import argparse
 import datetime
+import fcntl
 import os
 import re
 import subprocess
+import sys
+import tempfile
 import time
+from contextlib import contextmanager
 from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from util.repository import get_git_common_dir, get_shared_repository_root
 
 
 AVERAGED_PATTERN = re.compile(
@@ -27,6 +37,16 @@ def get_args_parser():
     parser.add_argument("--pid", required=True, type=int)
     parser.add_argument("--worktree", required=True, type=Path)
     parser.add_argument("--train-log", required=True, type=Path)
+    parser.add_argument(
+        "--ledger-root",
+        type=Path,
+        help="main worktree root; detected from Git when omitted",
+    )
+    parser.add_argument(
+        "--ledger-branch",
+        default="wheat50-model",
+        help="branch that is allowed to receive experiment-bank commits",
+    )
     parser.add_argument("--experiment-file", required=True, type=Path)
     parser.add_argument("--todo-file", default=Path("experiment-bank/todo.md"), type=Path)
     parser.add_argument("--task-name", required=True)
@@ -93,6 +113,78 @@ def process_is_alive(pid):
     except PermissionError:
         return True
     return True
+
+
+def _git_output(worktree, *arguments):
+    result = subprocess.run(
+        ["git", *arguments],
+        cwd=worktree,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
+
+
+def resolve_ledger_root(worktree, ledger_root=None):
+    """Resolve and validate the main worktree used as the shared ledger."""
+    detected_root = get_shared_repository_root(worktree)
+    resolved_root = (
+        Path(ledger_root).expanduser().resolve() if ledger_root else detected_root
+    )
+    if resolved_root != detected_root:
+        raise ValueError(
+            f"ledger root {resolved_root} is not the main worktree {detected_root}"
+        )
+    top_level = Path(
+        _git_output(resolved_root, "rev-parse", "--show-toplevel")
+    ).resolve()
+    if top_level != resolved_root:
+        raise ValueError(f"ledger root must be a worktree root: {resolved_root}")
+    return resolved_root
+
+
+def resolve_ledger_file(ledger_root, path):
+    """Resolve a ledger file and ensure it stays inside the main worktree."""
+    candidate = Path(path).expanduser()
+    if not candidate.is_absolute():
+        candidate = ledger_root / candidate
+    candidate = candidate.resolve()
+    try:
+        relative = candidate.relative_to(ledger_root)
+    except ValueError as error:
+        raise ValueError(f"ledger file must be inside {ledger_root}: {candidate}") from error
+    return candidate, relative
+
+
+def resolve_train_log(ledger_root, path):
+    """Resolve relative training logs from the shared main worktree."""
+    path = Path(path).expanduser()
+    return (ledger_root / path).resolve() if not path.is_absolute() else path.resolve()
+
+
+@contextmanager
+def experiment_bank_lock(ledger_root):
+    """Serialize automated ledger updates from concurrent experiments."""
+    lock_path = get_git_common_dir(ledger_root) / "experiment-bank.lock"
+    with lock_path.open("a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def atomic_write_text(path, text):
+    """Replace a UTF-8 text file atomically within its current directory."""
+    original_mode = path.stat().st_mode
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=path.parent, delete=False
+    ) as temporary_file:
+        temporary_file.write(text)
+        temporary_path = Path(temporary_file.name)
+    os.chmod(temporary_path, original_mode)
+    temporary_path.replace(path)
 
 
 def _format_success(parsed, baseline_mae, baseline_mse):
@@ -171,42 +263,74 @@ def finalize(args, succeeded, log_text):
         metrics, observations, outcome = _format_failure(log_text)
         status = f"Ended unsuccessfully on {now} from code commit `{args.code_commit}`."
 
-    experiment_path = args.worktree / args.experiment_file
-    experiment_text = experiment_path.read_text(encoding="utf-8")
-    experiment_text = replace_markdown_section(experiment_text, "Status", status)
-    experiment_text = replace_markdown_section(experiment_text, "Metrics", metrics)
-    experiment_text = replace_markdown_section(
-        experiment_text, "Observations", observations
-    )
-    experiment_text = replace_markdown_section(experiment_text, "Outcome", outcome)
-    experiment_path.write_text(experiment_text, encoding="utf-8")
+    with experiment_bank_lock(args.ledger_root):
+        current_branch = _git_output(
+            args.ledger_root, "branch", "--show-current"
+        )
+        if args.ledger_branch and current_branch != args.ledger_branch:
+            raise RuntimeError(
+                f"refusing to update experiment bank on branch {current_branch!r}; "
+                f"expected {args.ledger_branch!r}"
+            )
 
-    todo_path = args.worktree / args.todo_file
-    todo_text = todo_path.read_text(encoding="utf-8")
-    task_pattern = re.compile(
-        rf"(\|\s*{re.escape(args.task_name)}\s*\|\s*)pending(\s*\|)"
-    )
-    todo_text, count = task_pattern.subn(r"\1compeleted\2", todo_text, count=1)
-    if count != 1:
-        raise ValueError(f"Pending task row not found: {args.task_name}")
-    todo_path.write_text(todo_text, encoding="utf-8")
+        experiment_path, experiment_relative = resolve_ledger_file(
+            args.ledger_root, args.experiment_file
+        )
+        todo_path, todo_relative = resolve_ledger_file(
+            args.ledger_root, args.todo_file
+        )
 
-    subprocess.run(
-        ["git", "add", str(args.experiment_file), str(args.todo_file)],
-        cwd=args.worktree,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "commit", "-m", args.commit_message],
-        cwd=args.worktree,
-        check=True,
-    )
+        experiment_text = experiment_path.read_text(encoding="utf-8")
+        experiment_text = replace_markdown_section(
+            experiment_text, "Status", status
+        )
+        experiment_text = replace_markdown_section(
+            experiment_text, "Metrics", metrics
+        )
+        experiment_text = replace_markdown_section(
+            experiment_text, "Observations", observations
+        )
+        experiment_text = replace_markdown_section(
+            experiment_text, "Outcome", outcome
+        )
+
+        todo_text = todo_path.read_text(encoding="utf-8")
+        task_pattern = re.compile(
+            rf"(\|\s*{re.escape(args.task_name)}\s*\|\s*)pending(\s*\|)"
+        )
+        todo_text, count = task_pattern.subn(
+            r"\1compeleted\2", todo_text, count=1
+        )
+        if count != 1:
+            raise ValueError(f"Pending task row not found: {args.task_name}")
+
+        atomic_write_text(experiment_path, experiment_text)
+        atomic_write_text(todo_path, todo_text)
+
+        paths = [str(experiment_relative), str(todo_relative)]
+        subprocess.run(
+            ["git", "add", "--", *paths], cwd=args.ledger_root, check=True
+        )
+        subprocess.run(
+            [
+                "git",
+                "commit",
+                "--only",
+                "-m",
+                args.commit_message,
+                "--",
+                *paths,
+            ],
+            cwd=args.ledger_root,
+            check=True,
+        )
 
 
 def main():
     args = get_args_parser().parse_args()
     args.worktree = args.worktree.expanduser().resolve()
-    log_path = args.worktree / args.train_log
+    args.ledger_root = resolve_ledger_root(args.worktree, args.ledger_root)
+    log_path = resolve_train_log(args.ledger_root, args.train_log)
     while True:
         log_text = log_path.read_text(encoding="utf-8") if log_path.exists() else ""
         parsed = parse_training_log(log_text)

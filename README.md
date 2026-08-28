@@ -119,11 +119,9 @@ The network can be trained using the `train.py` script. For training on SHTechPa
 ```
 CUDA_VISIBLE_DEVICES=0 python train.py --data_root $DATA_ROOT \
     --dataset_file SHHA \
+    --experiment_name shtecha-baseline \
     --epochs 3500 \
     --lr_drop 3500 \
-    --output_dir ./logs \
-    --checkpoints_dir ./weights \
-    --tensorboard_dir ./logs \
     --lr 0.0001 \
     --lr_backbone 0.00001 \
     --batch_size 8 \
@@ -131,6 +129,36 @@ CUDA_VISIBLE_DEVICES=0 python train.py --data_root $DATA_ROOT \
     --gpu_id 0
 ```
 By default, a periodic evaluation will be conducted on the validation set.
+
+### Shared experiment outputs across worktrees
+
+Training resolves relative artifact paths from the main worktree, including
+when `train.py` runs inside a linked worktree. Give each run a unique
+`--experiment_name`; the default artifact bases then produce:
+
+```
+logs/EXPERIMENT_NAME/
+runs/EXPERIMENT_NAME/
+checkpoints/EXPERIMENT_NAME/
+```
+
+Absolute output paths remain absolute. The experiment finalizer likewise
+updates and commits the main worktree's `experiment-bank/`. It locks automated
+updates from parallel runs and refuses to write when the main worktree is not
+on the configured ledger branch.
+
+Generate a combined TensorBoard comparison, per-spike count scatter plots,
+and inference overlays for the three validation images with the most spikes:
+
+```
+python tools/visualize_wheat_experiments.py \
+    --data-root /path/to/coco_2cat_with_points_foreground \
+    --gpu-id 0
+```
+
+The default output directory is `vis/wheat50-model-comparison/`. Per-spike
+predicted counts use ground-truth instance masks only for evaluation-time point
+assignment; the model itself does not predict spike membership.
 
 ### Training on COCO wheat spikelet points
 
@@ -155,12 +183,10 @@ Run training with:
 CUDA_VISIBLE_DEVICES=0 python train.py \
     --dataset_file COCO \
     --data_root /path/to/coco_2cat_with_points \
+    --experiment_name wheat-example \
     --coco_category_name wheat_2 \
     --coco_crop_size 512 \
     --batch_size 2 \
-    --output_dir ./logs \
-    --checkpoints_dir ./weights \
-    --tensorboard_dir ./logs \
     --gpu_id 0
 ```
 

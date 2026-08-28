@@ -22,7 +22,7 @@ Train on a prepared SHHA-style dataset:
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 python train.py --data_root /path/to/data \
-  --dataset_file SHHA --output_dir logs --checkpoints_dir weights
+  --dataset_file SHHA --experiment_name example-run
 ```
 
 Run the bundled demo with `python run_test.py --weight_path weights/SHTechA.pth --output_dir logs`. Inspect dataset helper options with `python tools/build_p2pnet_data.py --help`.
@@ -37,7 +37,9 @@ No automated framework or coverage threshold is configured. Run the compile chec
 
 ## Experiment Bank Workflow
 
-Use `experiment-bank/` as the experiment ledger. `todo.md` lists work using only `pending` and `compeleted`; add new tasks as `pending` and mark them `compeleted` only after the run ends. Store each experiment's rationale in `ideas/` and its configuration, metrics, observations, and outcome in `experiments/`. Use matching descriptive filenames, such as `ideas/multistep-lr.md` and `experiments/multistep-lr.md`. After every experiment, update all applicable records, including failed or inconclusive runs.
+Use the main worktree's `experiment-bank/` as the single experiment ledger; do not maintain branch-local copies in linked worktrees. `todo.md` lists work using only `pending` and `compeleted`; add new tasks as `pending` and mark them `compeleted` only after the run ends. Store each experiment's rationale in `ideas/` and its configuration, metrics, observations, and outcome in `experiments/`. Use matching descriptive filenames, such as `ideas/multistep-lr.md` and `experiments/multistep-lr.md`. After every experiment, update all applicable records, including failed or inconclusive runs.
+
+Pass a unique `--experiment_name` for every training run. Relative `logs`, `runs`, and `checkpoints` paths are resolved below the main worktree and namespaced by that experiment name, even when training starts in a linked worktree. The experiment finalizer also discovers the main worktree, serializes concurrent ledger updates, and verifies the ledger branch before committing.
 
 ## Commit & Pull Request Guidelines
 

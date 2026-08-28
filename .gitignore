@@ -19,6 +19,7 @@ env/
 # Editors and operating systems
 .idea/
 .vscode/
+.codex/worktrees/
 .DS_Store
 Thumbs.db
 
