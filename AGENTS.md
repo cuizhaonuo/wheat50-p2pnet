@@ -6,6 +6,14 @@
 
 There is no dedicated `tests/` directory. Keep generated logs, run data, caches, and experimental checkpoints out of source control as defined in `.gitignore`.
 
+## Worktree Isolation & Shared Experiment Storage
+
+Linked worktrees isolate code only. Keep branch-specific source changes in their corresponding worktrees, but never treat a linked worktree as an independent experiment-output root.
+
+Store all training results in the main worktree: logs under `logs/<experiment_name>/`, TensorBoard events under `runs/<experiment_name>/`, and checkpoints under `checkpoints/<experiment_name>/`. Always pass a unique `--experiment_name`; relative artifact paths must resolve from the main worktree through the shared Git common directory, not from the linked worktree and not from a hard-coded absolute repository path.
+
+The main worktree's `experiment-bank/` is the only experiment ledger. Create and update `todo.md`, `ideas/`, and `experiments/` there even when the implementation and training process run from another worktree. Parallel finalizers must serialize central ledger updates and must not commit unrelated main-worktree changes.
+
 ## Build, Test, and Development Commands
 
 Create an environment and install dependencies:
@@ -37,9 +45,9 @@ No automated framework or coverage threshold is configured. Run the compile chec
 
 ## Experiment Bank Workflow
 
-Use the main worktree's `experiment-bank/` as the single experiment ledger; do not maintain branch-local copies in linked worktrees. `todo.md` lists work using only `pending` and `compeleted`; add new tasks as `pending` and mark them `compeleted` only after the run ends. Store each experiment's rationale in `ideas/` and its configuration, metrics, observations, and outcome in `experiments/`. Use matching descriptive filenames, such as `ideas/multistep-lr.md` and `experiments/multistep-lr.md`. After every experiment, update all applicable records, including failed or inconclusive runs.
+Following the centralized-storage rule above, `todo.md` lists work using only `pending` and `compeleted`; add new tasks as `pending` and mark them `compeleted` only after the run ends. Store each experiment's rationale in `ideas/` and its configuration, metrics, observations, and outcome in `experiments/`. Use matching descriptive filenames, such as `ideas/multistep-lr.md` and `experiments/multistep-lr.md`. After every experiment, update all applicable records, including failed or inconclusive runs.
 
-Pass a unique `--experiment_name` for every training run. Relative `logs`, `runs`, and `checkpoints` paths are resolved below the main worktree and namespaced by that experiment name, even when training starts in a linked worktree. The experiment finalizer also discovers the main worktree, serializes concurrent ledger updates, and verifies the ledger branch before committing.
+The experiment finalizer must discover the main worktree, serialize concurrent ledger updates, and verify the ledger branch before committing.
 
 ## Commit & Pull Request Guidelines
 
