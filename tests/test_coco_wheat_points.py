@@ -4,9 +4,11 @@ import tempfile
 import unittest
 import warnings
 from pathlib import Path
+from unittest.mock import patch
 
+import numpy as np
 import torch
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from crowd_datasets.COCO.coco_wheat_points import CocoWheatPoints
 from util.misc import collate_fn_crowd
@@ -112,6 +114,118 @@ class CocoWheatPointsTest(unittest.TestCase):
         batched_images, batched_targets = collate_fn_crowd([dataset[0], dataset[1]])
         self.assertEqual(tuple(batched_images.shape), (2, 3, 128, 128))
         self.assertEqual(len(batched_targets), 2)
+
+    def test_disabled_copy_paste_preserves_training_behavior(self):
+        options = {
+            "train": True,
+            "crop_size": 8,
+            "crops_per_image": 2,
+            "scale_range": (1.0, 1.0),
+            "horizontal_flip_probability": 0.5,
+        }
+        default_dataset = self.build_dataset(**options)
+        disabled_dataset = self.build_dataset(
+            **options,
+            copy_paste_probability=0.0,
+            copy_paste_max_instances=2,
+            copy_paste_placement_attempts=4,
+        )
+
+        random.seed(17)
+        default_images, default_targets = default_dataset[0]
+        random.seed(17)
+        disabled_images, disabled_targets = disabled_dataset[0]
+
+        torch.testing.assert_close(default_images, disabled_images)
+        for default_target, disabled_target in zip(
+            default_targets, disabled_targets
+        ):
+            torch.testing.assert_close(
+                default_target["point"], disabled_target["point"]
+            )
+
+    def test_copy_paste_translates_points_and_rejects_overlap(self):
+        source_image = Image.new("RGB", (10, 10), color="black")
+        ImageDraw.Draw(source_image).rectangle((1, 1, 3, 3), fill="red")
+        source_image.save(self.root / "train2017" / "source.png")
+        Image.new("RGB", (10, 10), color="black").save(
+            self.root / "train2017" / "target.png"
+        )
+        coco = {
+            "images": [
+                {
+                    "id": 10,
+                    "file_name": "source.png",
+                    "width": 10,
+                    "height": 10,
+                },
+                {
+                    "id": 11,
+                    "file_name": "target.png",
+                    "width": 10,
+                    "height": 10,
+                },
+            ],
+            "categories": [{"id": 2, "name": "wheat_2"}],
+            "annotations": [
+                {
+                    "id": 10,
+                    "image_id": 10,
+                    "category_id": 2,
+                    "segmentation": [[1, 1, 3, 1, 3, 3, 1, 3]],
+                    "points": [[2, 2]],
+                }
+            ],
+        }
+        annotation_path = self.root / "annotations" / "copy_paste.json"
+        annotation_path.write_text(json.dumps(coco), encoding="utf-8")
+        dataset = self.build_dataset(
+            annotation_file="annotations/copy_paste.json",
+            train=True,
+            crop_size=10,
+            scale_range=(1.0, 1.0),
+            horizontal_flip_probability=0.0,
+            copy_paste_probability=1.0,
+            copy_paste_max_instances=1,
+            copy_paste_placement_attempts=2,
+        )
+
+        target_image = Image.new("RGB", (10, 10), color="black")
+        original_occupancy = Image.new("L", (10, 10), 0)
+        ImageDraw.Draw(original_occupancy).rectangle((0, 0, 4, 4), fill=255)
+        original_points = np.asarray([[2, 2]], dtype=np.float32)
+        with patch(
+            "crowd_datasets.COCO.coco_wheat_points.random.randint",
+            side_effect=[0, 0, 6, 6],
+        ):
+            pasted_image, pasted_points, pasted_occupancy = (
+                dataset._copy_paste(
+                    target_image, original_points, original_occupancy
+                )
+            )
+
+        np.testing.assert_array_equal(
+            pasted_points,
+            np.asarray([[2, 2], [7, 7]], dtype=np.float32),
+        )
+        original_mask = np.asarray(original_occupancy) > 0
+        result_mask = np.asarray(pasted_occupancy) > 0
+        pasted_mask = np.logical_and(result_mask, ~original_mask)
+        self.assertFalse(np.logical_and(original_mask, pasted_mask).any())
+        self.assertEqual(int(pasted_mask.sum()), 9)
+        self.assertEqual(pasted_image.getpixel((7, 7)), (255, 0, 0))
+
+        with patch(
+            "crowd_datasets.COCO.coco_wheat_points.random.random",
+            side_effect=[0.5, 0.0],
+        ), patch(
+            "crowd_datasets.COCO.coco_wheat_points.random.randint",
+            side_effect=[0, 0, 6, 6],
+        ):
+            _, targets = dataset[1]
+        torch.testing.assert_close(
+            targets[0]["point"], torch.tensor([[7.0, 7.0]])
+        )
 
 
 if __name__ == "__main__":
