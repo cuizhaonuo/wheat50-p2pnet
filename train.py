@@ -34,7 +34,13 @@ def get_args_parser():
 
     # * Backbone
     parser.add_argument('--backbone', default='vgg16_bn', type=str,
-                        help="Name of the convolutional backbone to use")
+                        help="Name of the convolutional backbone to use, either a VGG "
+                             "variant or one of dinov3_convnext_{tiny,small,base,large}")
+    parser.add_argument('--backbone_weights', default='', type=str,
+                        help="checkpoint for the DINOv3 ConvNeXt backbone, accepting "
+                             "either the Hugging Face or the upstream naming")
+    parser.add_argument('--freeze_backbone', action='store_true',
+                        help="train the detection head on top of a frozen backbone")
 
     # * Matcher
     parser.add_argument('--set_cost_class', default=1, type=float,

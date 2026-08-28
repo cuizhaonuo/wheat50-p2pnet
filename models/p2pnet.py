@@ -206,13 +206,13 @@ class P2PNet(nn.Module):
 
         self.anchor_points = AnchorPoints(pyramid_levels=[3,], row=row, line=line)
 
-        self.fpn = Decoder(256, 512, 512)
+        self.fpn = Decoder(*backbone.fpn_channels)
 
     def forward(self, samples: NestedTensor):
         # get the backbone features
         features = self.backbone(samples)
         # forward the feature pyramid
-        features_fpn = self.fpn([features[1], features[2], features[3]])
+        features_fpn = self.fpn(features[-3:])
 
         batch_size = features[0].shape[0]
         # run the regression and classification branch
