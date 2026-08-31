@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import math
 import os
 import random
 import time
@@ -25,6 +26,11 @@ def get_args_parser():
     parser.add_argument('--epochs', default=3500, type=int)
     parser.add_argument('--lr_drop', default=[3500], type=int, nargs='+',
                         help='epoch(s) at which to drop LR by 0.1. Pass multiple values for multi-step.')
+    parser.add_argument('--lr_schedule', default='multistep', choices=('multistep', 'cosine'),
+                        help='decay applied after the warmup, either the --lr_drop milestones '
+                             'or a cosine decay to zero over the remaining epochs')
+    parser.add_argument('--lr_warmup_epochs', default=0, type=int,
+                        help='epochs of linear warmup before the decay starts')
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
 
@@ -107,6 +113,50 @@ def get_args_parser():
 
     return parser
 
+
+def build_param_dicts(model, args):
+    """Split the parameters by backbone membership and by decay eligibility.
+
+    Weight decay is skipped for biases and for the one-dimensional weights of
+    the normalization layers, where decaying towards zero shrinks activations
+    rather than regularizing the fit.
+    """
+    groups = {}
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad:
+            continue
+        backbone = 'backbone' in name
+        decay = parameter.ndim > 1
+        groups.setdefault((backbone, decay), []).append(parameter)
+    param_dicts = []
+    for (backbone, decay), parameters in sorted(groups.items()):
+        param_dicts.append({
+            'params': parameters,
+            'lr': args.lr_backbone if backbone else args.lr,
+            'weight_decay': args.weight_decay if decay else 0.0,
+        })
+    return param_dicts
+
+
+def build_lr_scheduler(optimizer, args):
+    """Linear warmup followed by the configured decay.
+
+    With no warmup and the multistep schedule this reproduces the MultiStepLR
+    with gamma 0.1 that the earlier experiments used.
+    """
+    warmup = max(0, args.lr_warmup_epochs)
+
+    def factor(epoch):
+        if warmup and epoch < warmup:
+            return (epoch + 1) / warmup
+        if args.lr_schedule == 'cosine':
+            progress = (epoch - warmup) / max(1, args.epochs - warmup)
+            return 0.5 * (1.0 + math.cos(math.pi * min(1.0, progress)))
+        return 0.1 ** sum(epoch >= milestone for milestone in args.lr_drop)
+
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, factor)
+
+
 def main(args):
     os.environ["CUDA_VISIBLE_DEVICES"] = '{}'.format(args.gpu_id)
     shared_root = get_shared_repository_root(__file__)
@@ -157,16 +207,10 @@ def main(args):
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
     # use different optimation params for different parts of the model
-    param_dicts = [
-        {"params": [p for n, p in model_without_ddp.named_parameters() if "backbone" not in n and p.requires_grad]},
-        {
-            "params": [p for n, p in model_without_ddp.named_parameters() if "backbone" in n and p.requires_grad],
-            "lr": args.lr_backbone,
-        },
-    ]
-    # Adam is used by default
-    optimizer = torch.optim.Adam(param_dicts, lr=args.lr)
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_drop, gamma=0.1)
+    param_dicts = build_param_dicts(model_without_ddp, args)
+    # AdamW with weight_decay=0 is Adam, which is what the earlier runs used
+    optimizer = torch.optim.AdamW(param_dicts, lr=args.lr)
+    lr_scheduler = build_lr_scheduler(optimizer, args)
     # create the dataset
     train_set, val_set = build_dataset(args=args)
     # create the sampler used during training
