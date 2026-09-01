@@ -27,5 +27,6 @@ Thumbs.db
 logs/
 runs/
 checkpoints/
+figures/
 weights/*
 !weights/SHTechA.pth
