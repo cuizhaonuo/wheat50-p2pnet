@@ -156,7 +156,7 @@ python tools/visualize_wheat_experiments.py \
     --gpu-id 0
 ```
 
-The default output directory is `vis/wheat50-model-comparison/`. Per-spike
+The default output directory is `figures/wheat50-model-comparison/`. Per-spike
 predicted counts use ground-truth instance masks only for evaluation-time point
 assignment; the model itself does not predict spike membership.
 

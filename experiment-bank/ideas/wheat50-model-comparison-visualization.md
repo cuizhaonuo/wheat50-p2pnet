@@ -22,4 +22,4 @@ inspect their behavior on individual wheat spikes.
 ## Expected Outputs
 
 Store the figures, per-spike CSV, and machine-readable summary below
-`vis/wheat50-model-comparison/`.
+`figures/wheat50-model-comparison/`.

@@ -12,7 +12,7 @@ See [the evaluation idea](../ideas/wheat50-model-comparison-visualization.md).
 - Confidence threshold: 0.5
 - Countable spike instances: 256
 - Assignment: predicted point center inside the ground-truth instance mask
-- Outputs: `vis/wheat50-model-comparison/`
+- Outputs: `figures/wheat50-model-comparison/`, which is not tracked
 
 ## Metrics
 

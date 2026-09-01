@@ -78,7 +78,7 @@ def get_args_parser():
     parser.add_argument("--gpu-id", default=0, type=int)
     parser.add_argument(
         "--output-dir",
-        default=Path("vis/wheat50-model-comparison"),
+        default=Path("figures/wheat50-model-comparison"),
         type=Path,
         help="output directory relative to the main worktree",
     )
