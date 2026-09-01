@@ -15,3 +15,4 @@ Use only these status values:
 | Train P2PNet on wheat50 with a frozen DINOv3 ConvNeXt-Base backbone | compeleted | [Idea](ideas/wheat50-dinov3-convnext-base-frozen-bs16-e250.md) | [Result](experiments/wheat50-dinov3-convnext-base-frozen-bs16-e250.md) |
 | Train P2PNet on wheat50 with a fine-tuned DINOv3 ConvNeXt-Base backbone | compeleted | [Idea](ideas/wheat50-dinov3-convnext-base-finetune-bs16-e250.md) | [Result](experiments/wheat50-dinov3-convnext-base-finetune-bs16-e250.md) |
 | Rerun VGG Copy-Paste and DINOv3 ConvNeXt-Base under the corrected optimizer and schedule | compeleted | [Idea](ideas/wheat50-cosine-wd-paired-rerun-bs16-e250.md) | [Result](experiments/wheat50-cosine-wd-paired-rerun-bs16-e250.md) |
+| Ablate the cosine schedule against weight decay on VGG Copy-Paste | pending | [Idea](ideas/wheat50-copypaste-schedule-ablation-bs16-e250.md) | [Result](experiments/wheat50-copypaste-schedule-ablation-bs16-e250.md) |
