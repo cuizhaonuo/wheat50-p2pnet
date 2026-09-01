@@ -35,3 +35,9 @@ See [the experiment idea](../ideas/wheat50-foreground-p2pnet-bs16-e250.md).
 Removing non-target pixels substantially improved counting, but did not make
 coordinate regression converge smoothly. This foreground-only run is the
 common baseline for the Copy-Paste and positive-crop experiments.
+
+## Superseded metrics
+
+The MAE and MSE above were measured at the hard-coded 0.5 threshold. See
+[the threshold selection record](wheat50-eval-threshold-selection.md) for the
+numbers at a threshold chosen per run, and for which conclusions survive.

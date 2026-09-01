@@ -15,4 +15,6 @@ Use only these status values:
 | Train P2PNet on wheat50 with a frozen DINOv3 ConvNeXt-Base backbone | compeleted | [Idea](ideas/wheat50-dinov3-convnext-base-frozen-bs16-e250.md) | [Result](experiments/wheat50-dinov3-convnext-base-frozen-bs16-e250.md) |
 | Train P2PNet on wheat50 with a fine-tuned DINOv3 ConvNeXt-Base backbone | compeleted | [Idea](ideas/wheat50-dinov3-convnext-base-finetune-bs16-e250.md) | [Result](experiments/wheat50-dinov3-convnext-base-finetune-bs16-e250.md) |
 | Rerun VGG Copy-Paste and DINOv3 ConvNeXt-Base under the corrected optimizer and schedule | compeleted | [Idea](ideas/wheat50-cosine-wd-paired-rerun-bs16-e250.md) | [Result](experiments/wheat50-cosine-wd-paired-rerun-bs16-e250.md) |
-| Ablate the cosine schedule against weight decay on VGG Copy-Paste | pending | [Idea](ideas/wheat50-copypaste-schedule-ablation-bs16-e250.md) | [Result](experiments/wheat50-copypaste-schedule-ablation-bs16-e250.md) |
+| Ablate the cosine schedule against weight decay on VGG Copy-Paste | compeleted | [Idea](ideas/wheat50-copypaste-schedule-ablation-bs16-e250.md) | [Result](experiments/wheat50-copypaste-schedule-ablation-bs16-e250.md) |
+| Calibrate score thresholds on the training split and reevaluate Wheat50 experiments | pending | [Idea](ideas/wheat50-threshold-calibration.md) | [Result](experiments/wheat50-threshold-calibration.md) |
+| Select the evaluation threshold on the training split and re-measure every run | compeleted | [Idea](ideas/wheat50-eval-threshold-selection.md) | [Result](experiments/wheat50-eval-threshold-selection.md) |

@@ -57,3 +57,9 @@ The higher plateau variance of both DINOv3 runs points at the two inherited
 training-configuration defects, the missing weight decay and the constant
 unwarmed learning rate, as the next thing to fix before scaling to
 ConvNeXt-Large or moving on to the wheat-domain FoMo4Wheat backbone.
+
+## Superseded metrics
+
+The MAE and MSE above were measured at the hard-coded 0.5 threshold. See
+[the threshold selection record](wheat50-eval-threshold-selection.md) for the
+numbers at a threshold chosen per run, and for which conclusions survive.

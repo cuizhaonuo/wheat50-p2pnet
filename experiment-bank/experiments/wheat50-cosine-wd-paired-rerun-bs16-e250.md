@@ -81,3 +81,9 @@ happened to suit VGG16-BN.
 The next step is an ablation on VGG16-BN, separating the cosine decay from the
 weight decay, since the corrected schedule costs that backbone 1.79 MAE and
 the reason is unknown.
+
+## Superseded metrics
+
+The MAE and MSE above were measured at the hard-coded 0.5 threshold. See
+[the threshold selection record](wheat50-eval-threshold-selection.md) for the
+numbers at a threshold chosen per run, and for which conclusions survive.

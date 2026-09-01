@@ -37,3 +37,9 @@ worktree.
 ## Outcome
 
 The experiment degraded best MAE by 0.2716 and changed best MSE by +1.0019 relative to the foreground-only baseline (5.8025/8.0323). The unscaled point loss finished at 42.8766 after a minimum of 4.2413.
+
+## Superseded metrics
+
+The MAE and MSE above were measured at the hard-coded 0.5 threshold. See
+[the threshold selection record](wheat50-eval-threshold-selection.md) for the
+numbers at a threshold chosen per run, and for which conclusions survive.

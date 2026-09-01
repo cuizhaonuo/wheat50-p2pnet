@@ -49,3 +49,9 @@ fine-tuned VGG16-BN on this task. Read together with the fine-tuned run, which
 recovers 3.95 MAE on the same features, the frozen protocol rather than the
 features is the limiting factor, so the result does not by itself argue that
 DINOv3 features are unsuitable for point localisation.
+
+## Superseded metrics
+
+The MAE and MSE above were measured at the hard-coded 0.5 threshold. See
+[the threshold selection record](wheat50-eval-threshold-selection.md) for the
+numbers at a threshold chosen per run, and for which conclusions survive.
