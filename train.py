@@ -107,6 +107,10 @@ def get_args_parser():
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--num_workers', default=8, type=int)
+    parser.add_argument('--eval_threshold', default=0.5, type=float,
+                        help='score above which an anchor point is counted; its best value '
+                             'moves with the training configuration, see '
+                             'tools/sweep_eval_threshold.py')
     parser.add_argument('--eval_freq', default=5, type=int,
                         help='frequency of evaluation, default setting is evaluating in every 5 epoch')
     parser.add_argument('--gpu_id', default=0, type=int, help='the gpu used for training')
@@ -291,7 +295,8 @@ def main(args):
         # run evaluation
         if epoch % args.eval_freq == 0 and epoch != 0:
             t1 = time.time()
-            result = evaluate_crowd_no_overlap(model, data_loader_val, device)
+            result = evaluate_crowd_no_overlap(model, data_loader_val, device,
+                                               threshold=args.eval_threshold)
             t2 = time.time()
 
             mae.append(result[0])
