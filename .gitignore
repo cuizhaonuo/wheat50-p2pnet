@@ -28,5 +28,6 @@ logs/
 runs/
 checkpoints/
 figures/
+vis/point_*/
 weights/*
 !weights/SHTechA.pth

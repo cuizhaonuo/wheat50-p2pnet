@@ -122,7 +122,15 @@ def process_split(source_root, output_root, split, category_name):
 
     for image_record in coco.get("images", []):
         image_id = image_record["id"]
-        source_path = source_image_root / image_record["file_name"]
+        relative_name = Path(image_record["file_name"])
+        source_path = source_image_root / relative_name
+        if not source_path.is_file() and relative_name.parent != Path("."):
+            # some annotation files carry a directory prefix the split does not
+            # actually have, so fall back to the bare file name
+            fallback = source_image_root / relative_name.name
+            if fallback.is_file():
+                relative_name = Path(relative_name.name)
+                source_path = fallback
         image = cv2.imread(str(source_path), cv2.IMREAD_COLOR)
         if image is None:
             raise FileNotFoundError(f"Could not read image: {source_path}")
@@ -152,8 +160,7 @@ def process_split(source_root, output_root, split, category_name):
             foreground_mask.astype(bool)
         ]
 
-        source_name = Path(image_record["file_name"])
-        output_name = source_name.with_suffix(".png")
+        output_name = relative_name.with_suffix(".png")
         output_path = output_image_root / output_name
         output_path.parent.mkdir(parents=True, exist_ok=True)
         if not cv2.imwrite(
